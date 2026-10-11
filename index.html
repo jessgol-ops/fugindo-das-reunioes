@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1c252d">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Fugindo das Reuniões 8-Bit</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --night: #1c252d;
+      --purple: #2d3a45;
+      --pink: #e8833a;
+      --cyan: #5cc8dc;
+      --yellow: #ffe66d;
+      --orange: #ff9a3c;
+      --pixel: 'Press Start 2P', 'Courier New', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background: radial-gradient(ellipse at 50% 40%, #3a4b58 0%, var(--night) 70%);
+      background-color: var(--night);
+      font-family: var(--pixel);
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+
+    #stage {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 10px;
+    }
+
+    /* Tamanho definido via JS mantendo sempre 16:9 */
+    #game-container {
+      position: relative;
+      width: 480px;
+      height: 270px;
+      flex: 0 0 auto;
+      overflow: hidden;
+      border-radius: 10px;
+      border: 3px solid var(--pink);
+      background: #e6eef2;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45), 0 0 0 4px rgba(232, 131, 58, 0.25);
+      container-type: inline-size;
+    }
+
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      image-rendering: crisp-edges;
+      image-rendering: pixelated;
+      touch-action: none;
+    }
+
+    /* Scanlines de CRT bem sutis */
+    #game-container::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      pointer-events: none;
+      background: repeating-linear-gradient(to bottom, rgba(0,0,0,0.05) 0 1px, transparent 1px 3px);
+      mix-blend-mode: multiply;
+    }
+
+    /* --- Overlay (menu / pausa / game over) --- */
+    #overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4cqw;
+      padding: 3cqw 5cqw;
+      background: radial-gradient(ellipse at 50% 45%, rgba(45, 58, 69, 0.82), rgba(28, 37, 45, 0.93));
+      cursor: pointer;
+    }
+    #overlay.hidden { display: none; }
+
+    #portrait {
+      height: min(70%, 34cqw);
+      width: auto;
+      image-rendering: pixelated;
+      filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.3));
+      animation: bob 1.4s steps(2) infinite;
+      flex: 0 0 auto;
+    }
+    @keyframes bob {
+      50% { transform: translateY(-3%); }
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2.4cqw;
+      text-align: center;
+      max-width: 62cqw;
+    }
+
+    .title {
+      font-size: clamp(12px, 4.4cqw, 30px);
+      line-height: 1.25;
+      background: linear-gradient(180deg, var(--yellow) 0%, var(--yellow) 40%, var(--orange) 62%, #ff3d6e 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      filter: drop-shadow(0.4cqw 0.4cqw 0 #7a3a12) drop-shadow(0 0 1.2cqw rgba(232, 131, 58, 0.5));
+    }
+
+    .tag {
+      color: var(--cyan);
+      font-size: clamp(7px, 1.7cqw, 12px);
+      letter-spacing: 0.1em;
+      text-shadow: 0 0 6px rgba(62, 224, 255, 0.8);
+    }
+
+    .subtitle {
+      color: #fff;
+      font-size: clamp(7px, 1.8cqw, 13px);
+      line-height: 1.6;
+    }
+
+    .hint {
+      color: #f6c8a6;
+      font-size: clamp(6px, 1.4cqw, 10px);
+      line-height: 1.6;
+    }
+
+    .btn-start {
+      font-family: var(--pixel);
+      font-size: clamp(10px, 2.6cqw, 18px);
+      color: #1a0838;
+      background: linear-gradient(180deg, var(--yellow), var(--orange));
+      padding: clamp(8px, 1.8cqw, 14px) clamp(14px, 3.6cqw, 28px);
+      border: 3px solid #1a0838;
+      border-radius: 6px;
+      box-shadow: 0 5px 0 #1a0838, 0 0 18px rgba(255, 154, 60, 0.7);
+      cursor: pointer;
+      animation: pulse 1.1s infinite alternate;
+    }
+    @keyframes pulse {
+      from { transform: scale(1); }
+      to   { transform: scale(1.05); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .btn-start, #portrait { animation: none; }
+    }
+
+    /* Em telas pequenas o retrato some para caber o texto */
+    @container (max-width: 380px) {
+      #portrait { display: none; }
+      .panel { max-width: 92cqw; }
+    }
+
+    /* Botão de pausa: topo central, só durante a partida */
+    #pause-btn {
+      position: absolute;
+      top: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 6;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 32px;
+      border: 2px solid var(--cyan);
+      border-radius: 8px;
+      background: rgba(45, 58, 69, 0.85);
+      color: var(--cyan);
+      font: 10px var(--pixel);
+      box-shadow: 0 0 8px rgba(62, 224, 255, 0.6);
+      cursor: pointer;
+      touch-action: none;
+    }
+    #game-container[data-state="play"] #pause-btn { display: flex; }
+
+    /* --- Controles touch --- */
+    #rotate-hint {
+      display: none;
+      color: #f6c8a6;
+      font-size: 9px;
+      line-height: 1.6;
+      text-align: center;
+    }
+
+    #controls { display: none; }
+
+    body.touch #controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 16px 16px;
+    }
+
+    .touch-btn {
+      min-width: 130px;
+      min-height: 64px;
+      padding: 0 16px;
+      border-radius: 16px;
+      background: rgba(45, 58, 69, 0.9);
+      font: 13px var(--pixel);
+      cursor: pointer;
+      touch-action: none;
+    }
+    #btn-jump {
+      color: var(--cyan);
+      border: 3px solid var(--cyan);
+      box-shadow: 0 5px 0 #1f5f6b, 0 0 14px rgba(92, 200, 220, 0.45);
+    }
+    #btn-duck {
+      color: var(--pink);
+      border: 3px solid var(--pink);
+      box-shadow: 0 5px 0 #8a4518, 0 0 14px rgba(232, 131, 58, 0.45);
+    }
+    .touch-btn.pressed {
+      transform: translateY(4px);
+      box-shadow: none !important;
+      background: rgba(70, 88, 102, 0.95);
+    }
+
+    @media (orientation: portrait) {
+      body.touch #rotate-hint { display: block; }
+      body.touch .touch-btn {
+        flex: 1;
+        min-height: 96px;
+        font-size: 15px;
+      }
+    }
+
+    @media (orientation: landscape) {
+      body.touch #controls {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 20;
+        pointer-events: none;
+        padding: 0 max(16px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+      }
+      body.touch .touch-btn {
+        pointer-events: auto;
+        opacity: 0.85;
+        min-height: clamp(44px, 15vh, 64px);
+        min-width: clamp(100px, 18vw, 140px);
+        font-size: clamp(9px, 3vh, 13px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="stage">
+      <div id="game-container" data-state="menu">
+        <canvas id="gameCanvas"></canvas>
+
+        <button id="pause-btn" type="button" aria-label="Pausar">❚❚</button>
+
+        <div id="overlay">
+          <img id="portrait" alt="">
+          <div class="panel">
+            <div class="title" id="overlay-title">FUGINDO DAS REUNIÕES</div>
+            <div class="tag" id="overlay-tag">— O JOGO —</div>
+            <div class="subtitle" id="overlay-sub">Pule os calendários e abaixe dos balões. Café recupera vida!</div>
+            <button class="btn-start" id="start-btn" type="button">▶ START</button>
+            <div class="hint" id="overlay-hint"></div>
+          </div>
+        </div>
+      </div>
+      <p id="rotate-hint">Gire o celular para jogar maior ↻</p>
+    </div>
+
+    <div id="controls">
+      <button class="touch-btn" id="btn-duck" type="button">▼ ABAIXAR</button>
+      <button class="touch-btn" id="btn-jump" type="button">▲ PULAR</button>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+
+    // ================= ÁUDIO 8-BIT =================
+    const sfx = {
+      ctx: null,
+      muted: false,
+      init() {
+        if (!this.ctx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) return;
+          this.ctx = new AC();
+        }
+        if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+      },
+      tone(type, f0, f1, dur, vol, ramp, delay = 0) {
+        if (!this.ctx || this.muted) return;
+        const t = this.ctx.currentTime + delay;
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(f0, t);
+        if (ramp === 'exp') o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+        else if (ramp === 'step') o.frequency.setValueAtTime(f1, t + dur * 0.4);
+        else o.frequency.linearRampToValueAtTime(f1, t + dur);
+        g.gain.setValueAtTime(vol, t);
+        g.gain.linearRampToValueAtTime(0.0001, t + dur);
+        o.connect(g);
+        g.connect(this.ctx.destination);
+        o.start(t);
+        o.stop(t + dur + 0.02);
+      },
+      milestone() { this.tone('square', 880, 880, 0.08, 0.07, 'lin'); this.tone('square', 1320, 1320, 0.12, 0.07, 'lin', 0.09); },
+      jump()   { this.tone('square',   150, 600, 0.15, 0.10, 'exp'); },
+      coffee() { this.tone('triangle', 300, 600, 0.25, 0.15, 'step'); this.tone('triangle', 600, 900, 0.15, 0.1, 'step', 0.12); },
+      hit()    { this.tone('sawtooth', 120,  40, 0.20, 0.20, 'lin'); },
+      over()   { this.tone('square', 392, 392, 0.18, 0.1, 'lin'); this.tone('square', 330, 330, 0.18, 0.1, 'lin', 0.2); this.tone('square', 262, 110, 0.5, 0.12, 'lin', 0.4); }
+    };
+
+    // ================= ELEMENTOS =================
+    const $ = id => document.getElementById(id);
+    const canvas = $('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const container = $('game-container');
+    const stage = $('stage');
+    const overlay = $('overlay');
+    const overlayTitle = $('overlay-title');
+    const overlayTag = $('overlay-tag');
+    const overlaySub = $('overlay-sub');
+    const overlayHint = $('overlay-hint');
+    const portrait = $('portrait');
+    const startBtn = $('start-btn');
+    const pauseBtn = $('pause-btn');
+    const rotateHint = $('rotate-hint');
+    const btnJump = $('btn-jump');
+    const btnDuck = $('btn-duck');
+
+    // Mundo lógico 480x270, desenhado a 2x para o texto pixelado ficar nítido
+    const W = 480, H = 270, RES = 2;
+    const GROUND = 238, S = 1.5; // S = escala da personagem e dos objetos
+    canvas.width = W * RES;
+    canvas.height = H * RES;
+    ctx.setTransform(RES, 0, 0, RES, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+
+    const GRAVITY = 2000, JUMP_V = -640, FAST_FALL = 2.5;
+    // Velocidade estilo "dinossauro do Chrome": começa calma e acelera devagar e sem parar
+    // (≈ 1min50s até a velocidade máxima). Os obstáculos vêm mais juntos conforme acelera.
+    const BASE_SPEED = 180, MAX_SPEED = 470, ACCEL = 2.6;
+    const CAL_S = 1.2; // calendários um pouco menores que a personagem/balões
+    const PIXEL_FONT = '"Press Start 2P", "Courier New", monospace';
+    const font = px => `${px}px ${PIXEL_FONT}`;
+
+    // ================= SPRITES (extraídos das artes da personagem) =================
+    const PAL = {"a": "#020101", "b": "#1f1d22", "c": "#3a1713", "d": "#2e2a2f", "e": "#552b24", "f": "#3a373d", "g": "#7c1d24", "h": "#90363e", "i": "#ae313c", "j": "#986c62", "k": "#a6786e", "l": "#d67e66", "m": "#d19e88", "n": "#b7b2ab", "o": "#f0bd9f", "p": "#fac8ac", "q": "#d2d2d1", "r": "#f7d3bf", "s": "#fbecd5", "t": "#fffffe"};
+    const FRONT = [
+      ".......aaaaaaaaaa.......",
+      ".....aaeeeeeeeeeeaa.....",
+      "....aeeeeeeeeeeeeeea....",
+      "...aeeeeeeeeeeeeeeeea...",
+      "..aeeekeeeeeeeeeekeeea..",
+      "..aeeekeekekeeeekkkeea..",
+      ".aeeeeeeeeeeeeeeekeeeea.",
+      ".aeeeceeeeeeeeeceeeeeea.",
+      "aeeeceeeeeeeeeeceeeceeea",
+      "aeeececeeeceeecsceeceeea",
+      "aeeececeeeceecssscefffea",
+      "aeeecccccccccssssscceeea",
+      "aceecaaaassssssaaaafffca",
+      "amcecqtaasssssstaaqcecma",
+      "amacctaaassssssaaatccama",
+      "aaaectaaassssssaaatceaaa",
+      "aeaecppppssssssppppceaea",
+      "aeaealppsssssssspplaeaea",
+      "aeaeaaassssssssssaaaeaea",
+      "aeaeacaaaaaaaaaaaacaeaea",
+      "aeeaacafiigoogiifacaaeea",
+      "aeeeaccadfiggifdaccaeeea",
+      "aeeeccaffddbbddffacceeea",
+      "aeeecaifdbgffgbdfiaceeea",
+      "aeeeaiiibdiffidbiiiaeeea",
+      "aeeaffigbfiffifbgiffaeea",
+      "aeafiffbdfiffifdbffifaea",
+      "aafffidbffiffiffbdifffaa",
+      "aafffdbdffiffiffdbdfffaa",
+      "aabdbaadffffffffdaabdbaa",
+      "aeaaaadffffffffffdaaaaea",
+      ".aeecadffffffffffdaceea.",
+      "..aaaaffffffffffffaaaa..",
+      "......aabdbdbdbdaa......",
+      "........assaassa........",
+      "........addaadda........",
+      "........affaaffa........",
+      "........aiiaaiia........",
+      "........affaaffa........",
+      "........aiiaaiia........",
+      ".........aa..aa........."
+    ];
+    const SIDE = [
+      "......aaaaaaaa......",
+      "....aaeeeeeeeeaa....",
+      "...aeeeeeeeeeeeea...",
+      "..aeeeeeeeeeeeeeea..",
+      ".aeejeeeeeeeeeeejea.",
+      ".aeejjeejeeejejejea.",
+      "aeeeeeeeeeeeeeeeeeea",
+      "aeeeeeeeeceeeceeeeea",
+      "aeeeeeeeeceeceececea",
+      "aeeeeeeeceeeceececea",
+      "aeeeeeeeceeececeecea",
+      "aeeeeeeeceeeccccccea",
+      "aeeeeeaaceeccaaasca.",
+      "aeeeeapmceecaqaasa..",
+      "aeeeeapmceecntaasa..",
+      "aeeeearmceecttaasa..",
+      "aeeeeeaaceecotaassa.",
+      ".aeeeeecceecooosssa.",
+      ".aeeeeecceecooossa..",
+      ".aeeeeecceecosssa...",
+      ".aeeeeccaaeecaaa....",
+      ".aeeeecafdceea......",
+      ".aeeeccadaaceca.....",
+      ".aeeeccaaffacea.....",
+      "aeeeeccaffffaaga....",
+      "aeeeeccahhffbfia....",
+      "aeeecccaffhhafha....",
+      "aeeeccaahhffadha....",
+      "aeeeccafffhhadha....",
+      "aeeecaafffffaffa....",
+      ".aeecaafffffaffa....",
+      "..aecaaddfffaffa....",
+      "...acafaaaaafffa....",
+      "....aafasssafffa....",
+      ".....addaaaffffa....",
+      "......aaaaaadaaa....",
+      "........ammmma......",
+      "........assssa......",
+      "........adddfa......",
+      "........ahhhha......",
+      "........adfdda......",
+      "........ahhhha......",
+      "........addddba.....",
+      "........adddhha.....",
+      "........aaaaaa......"
+    ];
+
+    // Versão mais escura da perna de trás (dá profundidade na corrida)
+    const DARKER = { h: 'g', i: 'g', f: 'd', d: 'b', s: 'o', m: 'l', b: 'a' };
+
+    function makeSprite(rows, remap) {
+      const w = Math.max(...rows.map(r => r.length));
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = rows.length;
+      const g = c.getContext('2d');
+      rows.forEach((row, y) => {
+        for (let x = 0; x < row.length; x++) {
+          let ch = row[x];
+          if (ch === '.') continue;
+          if (remap && remap[ch]) ch = remap[ch];
+          const col = PAL[ch];
+          if (col) { g.fillStyle = col; g.fillRect(x, y, 1, 1); }
+        }
+      });
+      return c;
+    }
+
+    function compose(w, h, parts) {
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      const g = c.getContext('2d');
+      parts.forEach(([img, x, y]) => g.drawImage(img, x, y));
+      return c;
+    }
+
+    // Perfil virado para a direita: corpo (linhas 0-35) + pernas (36-44)
+    const SW = SIDE[0].length, SH = SIDE.length;
+    const body = makeSprite(SIDE.slice(0, 36));
+    const legRows = SIDE.slice(36);
+    const legShortRows = [legRows[0], ...legRows.slice(3)];
+    const leg = makeSprite(legRows);
+    const legDark = makeSprite(legRows, DARKER);
+    const legShort = makeSprite(legShortRows);
+    const legShortDark = makeSprite(legShortRows, DARKER);
+
+    const SPR = {
+      stand: compose(SW, SH, [[leg, 0, 36], [body, 0, 0]]),
+      runA:  compose(SW, SH, [[legDark, -3, 36], [legShort, 3, 36], [body, 0, 0]]),
+      runB:  compose(SW, SH, [[legShortDark, -3, 36], [leg, 3, 36], [body, 0, 0]]),
+      jump:  compose(SW, SH, [[legShortDark, -2, 35], [legShort, 3, 34], [body, 0, 0]]),
+      duck:  makeSprite([
+        ...SIDE.slice(0, 20),
+        ...SIDE.slice(20, 36).filter((_, i) => i % 2 === 0),
+        ...SIDE.slice(42)
+      ]),
+      front: makeSprite(FRONT)
+    };
+    const STAND_H = SH, DUCK_H = SPR.duck.height;
+    const RUN_CYCLE = [SPR.stand, SPR.runA, SPR.stand, SPR.runB];
+
+    portrait.src = (() => {
+      const c = document.createElement('canvas');
+      const s = 8;
+      c.width = SPR.front.width * s;
+      c.height = SPR.front.height * s;
+      const g = c.getContext('2d');
+      g.imageSmoothingEnabled = false;
+      g.drawImage(SPR.front, 0, 0, c.width, c.height);
+      return c.toDataURL();
+    })();
+
+    const HEART = [".XX.XX.", "XXXXXXX", "XXXXXXX", ".XXXXX.", "..XXX..", "...X..."];
+
+    // ================= CENÁRIO: ESCRITÓRIO (pré-renderizado) =================
+    function layer(w, h, draw) {
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      const g = c.getContext('2d');
+      g.imageSmoothingEnabled = false;
+      draw(g, w, h);
+      return c;
+    }
+
+    // Pseudo-aleatório determinístico: o cenário é sempre igual
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+
+    const OFF = {
+      outline: '#2d3a45',
+      ceil: '#e6eef2', ceilLine: '#bfcdd6',
+      wall: '#eef3f6', wallShade: '#d7e2e8',
+      frame: '#5d7383', frameLight: '#7f97a6',
+      glassTop: '#d8eef7', glassBot: '#a9d0e2',
+      city: '#9cbfd2', cityFar: '#b9d6e4', cityWin: '#d6ebf4',
+      floor: '#cdd6dc', floorLine: '#b5c1c9', floorLight: '#dbe3e8',
+      wood: '#c97a3e', woodTop: '#e29a5c', woodDark: '#9c5a2b',
+      chair: '#262b31', chairTrim: '#dc7638',
+      metal: '#9aa7b1', white: '#f5f7f8',
+      screen: '#3c5568', screenOn: '#4f7f9e', screenGlow: '#8fd0ee',
+      leaf: '#4caf50', leafDark: '#2e7d32', leafLight: '#7ccf6a',
+      book: ['#d9733a', '#3f8a8c', '#8a5a3c', '#e3b04b', '#5b7fa6']
+    };
+
+    const WALL_TOP = 26;       // fim do teto
+    const WIN_BOTTOM = 196;    // base das janelas / linha do piso
+    const FLOOR_TOP = 200;
+
+    // Teto fixo com placas e luminárias
+    const ceilingLayer = layer(W, WALL_TOP, (g, w, h) => {
+      g.fillStyle = OFF.ceil;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = OFF.ceilLine;
+      for (let x = 0; x < w; x += 60) g.fillRect(x, 0, 1, h);
+      g.fillRect(0, 12, w, 1);
+      g.fillStyle = '#ffffff';
+      for (let x = 20; x < w; x += 120) {
+        g.fillRect(x, 4, 40, 4);
+        g.fillStyle = 'rgba(255,255,255,0.6)';
+        g.fillRect(x - 2, 8, 44, 2);
+        g.fillStyle = '#ffffff';
+      }
+      g.fillStyle = OFF.frame;
+      g.fillRect(0, h - 2, w, 2);
+    });
+
+    // Janelões de vidro com a cidade ao fundo (repetível)
+    const WIN_W = 480;
+    const windowLayer = layer(WIN_W, WIN_BOTTOM - WALL_TOP, (g, w, h) => {
+      // vidro
+      const grad = g.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, OFF.glassTop);
+      grad.addColorStop(1, OFF.glassBot);
+      g.fillStyle = grad;
+      g.fillRect(0, 0, w, h);
+
+      // prédios ao longe
+      let x = -4;
+      while (x < w) {
+        const bw = 14 + Math.floor(rnd() * 22);
+        const bh = 40 + Math.floor(rnd() * 70);
+        g.fillStyle = OFF.cityFar;
+        g.fillRect(x, h - bh - 10, bw, bh + 10);
+        x += bw + Math.floor(rnd() * 8);
+      }
+      x = 0;
+      while (x < w) {
+        const bw = 18 + Math.floor(rnd() * 26);
+        const bh = 30 + Math.floor(rnd() * 60);
+        g.fillStyle = OFF.city;
+        g.fillRect(x, h - bh, bw, bh);
+        g.fillStyle = OFF.cityWin;
+        for (let wy = h - bh + 4; wy < h - 4; wy += 6) {
+          for (let wx = x + 3; wx < x + bw - 3; wx += 5) {
+            if (rnd() > 0.35) g.fillRect(wx, wy, 2, 3);
+          }
+        }
+        x += bw + 4 + Math.floor(rnd() * 12);
+      }
+
+      // reflexos diagonais no vidro
+      g.fillStyle = 'rgba(255,255,255,0.35)';
+      for (let i = 0; i < 6; i++) {
+        const rx = 30 + i * 80;
+        for (let k = 0; k < 40; k++) g.fillRect(rx + k, 10 + k * 2, 6, 2);
+      }
+
+      // caixilhos
+      g.fillStyle = OFF.frame;
+      for (let mx = 0; mx < w; mx += 80) g.fillRect(mx, 0, 3, h);
+      for (let mx = 40; mx < w; mx += 80) g.fillRect(mx, 0, 1, h);
+      g.fillRect(0, 0, w, 2);
+      g.fillRect(0, 56, w, 2);
+      g.fillStyle = OFF.frameLight;
+      for (let mx = 1; mx < w; mx += 80) g.fillRect(mx, 0, 1, h);
+
+      // pilares claros
+      for (let px = 150; px < w; px += 240) {
+        g.fillStyle = OFF.wall;
+        g.fillRect(px, 0, 26, h);
+        g.fillStyle = OFF.wallShade;
+        g.fillRect(px + 20, 0, 6, h);
+        g.fillStyle = OFF.frame;
+        g.fillRect(px - 1, 0, 1, h);
+        g.fillRect(px + 26, 0, 1, h);
+      }
+      // rodapé das janelas
+      g.fillStyle = OFF.frame;
+      g.fillRect(0, h - 3, w, 3);
+    });
+
+    function outlineRect(g, x, y, w, h, fill) {
+      g.fillStyle = OFF.outline;
+      g.fillRect(x - 1, y - 1, w + 2, h + 2);
+      g.fillStyle = fill;
+      g.fillRect(x, y, w, h);
+    }
+
+    function drawPlant(g, x, base, big) {
+      const pw = big ? 16 : 10, ph = big ? 12 : 8;
+      outlineRect(g, x, base - ph, pw, ph, OFF.white);
+      g.fillStyle = '#dfe6ea';
+      g.fillRect(x + pw - 3, base - ph, 3, ph);
+      const leaves = big ? 9 : 5;
+      for (let i = 0; i < leaves; i++) {
+        const lx = x + pw / 2 + Math.round((i - leaves / 2) * 2.4);
+        const lh = (big ? 26 : 12) - Math.abs(i - leaves / 2) * (big ? 3 : 2);
+        g.fillStyle = OFF.outline;
+        g.fillRect(lx - 1, base - ph - lh - 1, 4, lh + 1);
+        g.fillStyle = i % 2 ? OFF.leaf : OFF.leafDark;
+        g.fillRect(lx, base - ph - lh, 2, lh);
+        g.fillStyle = OFF.leafLight;
+        g.fillRect(lx, base - ph - lh, 1, 3);
+      }
+    }
+
+    function drawChair(g, x, base) {
+      // encosto
+      outlineRect(g, x, base - 40, 18, 22, OFF.chair);
+      g.fillStyle = OFF.chairTrim;
+      g.fillRect(x, base - 40, 2, 22);
+      g.fillRect(x, base - 40, 18, 2);
+      // assento
+      outlineRect(g, x - 2, base - 19, 22, 5, OFF.chair);
+      g.fillStyle = OFF.chairTrim;
+      g.fillRect(x - 2, base - 19, 22, 1);
+      // pés cromados
+      g.fillStyle = OFF.metal;
+      g.fillRect(x + 8, base - 14, 2, 8);
+      g.fillRect(x - 1, base - 6, 20, 2);
+      g.fillRect(x - 2, base - 4, 2, 4);
+      g.fillRect(x + 18, base - 4, 2, 4);
+    }
+
+    function drawMonitor(g, x, top) {
+      outlineRect(g, x, top, 26, 18, OFF.screen);
+      g.fillStyle = OFF.screenOn;
+      g.fillRect(x + 2, top + 2, 22, 13);
+      g.fillStyle = OFF.screenGlow;
+      g.fillRect(x + 4, top + 4, 10, 2);
+      g.fillRect(x + 4, top + 8, 16, 1);
+      g.fillRect(x + 4, top + 11, 12, 1);
+      g.fillStyle = OFF.metal;
+      g.fillRect(x + 11, top + 19, 4, 4);
+      g.fillRect(x + 7, top + 22, 12, 2);
+    }
+
+    function drawLaptop(g, x, top) {
+      outlineRect(g, x, top, 20, 13, '#3a4651');
+      g.fillStyle = '#5aa2d6';
+      g.fillRect(x + 2, top + 2, 16, 9);
+      g.fillStyle = '#e88a3c';
+      g.fillRect(x + 5, top + 5, 7, 3);
+      g.fillStyle = OFF.metal;
+      g.fillRect(x - 3, top + 13, 26, 2);
+    }
+
+    function drawBooks(g, x, base, n) {
+      for (let i = 0; i < n; i++) {
+        const bh = 9 + Math.floor(rnd() * 5);
+        outlineRect(g, x + i * 4, base - bh, 3, bh, OFF.book[Math.floor(rnd() * OFF.book.length)]);
+      }
+    }
+
+    function drawShelf(g, x, base) {
+      outlineRect(g, x, base - 34, 40, 34, OFF.white);
+      g.fillStyle = '#5b4636';
+      g.fillRect(x + 2, base - 32, 18, 14);
+      g.fillRect(x + 2, base - 16, 18, 14);
+      g.fillStyle = OFF.outline;
+      g.fillRect(x + 21, base - 34, 1, 34);
+      g.fillRect(x + 22, base - 23, 18, 1);
+      g.fillRect(x + 22, base - 12, 18, 1);
+      g.fillStyle = OFF.metal;
+      g.fillRect(x + 29, base - 29, 4, 1);
+      g.fillRect(x + 29, base - 18, 4, 1);
+      g.fillRect(x + 29, base - 7, 4, 1);
+      let bx = x + 3;
+      for (const row of [base - 19, base - 3]) {
+        bx = x + 3;
+        while (bx < x + 18) {
+          const bh = 8 + Math.floor(rnd() * 4);
+          g.fillStyle = OFF.book[Math.floor(rnd() * OFF.book.length)];
+          g.fillRect(bx, row - bh, 3, bh);
+          bx += 4;
+        }
+      }
+    }
+
+    // Mesas, cadeiras, plantas e estantes (repetível)
+    const DESK_W = 720;
+    const DESK_H = 90;
+    const deskLayer = layer(DESK_W, DESK_H, (g, w, h) => {
+      const base = h;
+      const deskTop = base - 34;
+      let x = 10;
+      while (x < w - 140) {
+        const dw = 110 + Math.floor(rnd() * 40);
+        // tampo e frente da mesa
+        outlineRect(g, x, deskTop, dw, 5, OFF.woodTop);
+        outlineRect(g, x + 2, deskTop + 5, dw - 4, 10, OFF.wood);
+        g.fillStyle = OFF.woodDark;
+        g.fillRect(x + 2, deskTop + 14, dw - 4, 1);
+        // pés
+        g.fillStyle = OFF.metal;
+        g.fillRect(x + 6, deskTop + 16, 3, base - deskTop - 16);
+        g.fillRect(x + dw - 9, deskTop + 16, 3, base - deskTop - 16);
+
+        // itens sobre a mesa
+        let ix = x + 6;
+        const items = ['books', 'laptop', 'monitor', 'plant', 'monitor', 'books'];
+        const pick = () => items[Math.floor(rnd() * items.length)];
+        while (ix < x + dw - 26) {
+          const it = pick();
+          if (it === 'monitor') { drawMonitor(g, ix, deskTop - 25); ix += 34; }
+          else if (it === 'laptop') { drawLaptop(g, ix + 3, deskTop - 16); ix += 30; }
+          else if (it === 'plant') { drawPlant(g, ix, deskTop - 1, false); ix += 18; }
+          else { drawBooks(g, ix, deskTop - 1, 3); ix += 18; }
+        }
+
+        // cadeiras na frente da mesa
+        drawChair(g, x + 14, base);
+        if (dw > 125) drawChair(g, x + dw - 40, base);
+
+        x += dw + 12;
+        // entre mesas: estante ou planta grande
+        if (rnd() > 0.45) { drawShelf(g, x, base); x += 52; }
+        else { drawPlant(g, x + 4, base, true); x += 34; }
+      }
+    });
+
+    // ================= ESTADO =================
+    const MENU = 'menu', PLAY = 'play', PAUSE = 'pause', OVER = 'over';
+    let state = MENU, stateAt = 0;
+    let score = 0, best = 0, hp = 3, speed = BASE_SPEED;
+    let obstacles = [], coffees = [], popups = [], particles = [];
+    let milestone = 0, flashT = 0;
+    let spawnIn = 1, coffeeIn = 5, invuln = 0, scrollX = 0, clock = 0, spawned = 0, shake = 0;
+
+    try { best = parseInt(localStorage.getItem('fdr-best'), 10) || 0; } catch (e) {}
+
+    const player = {
+      x: 50, bottom: GROUND, vy: 0, grounded: true, ducking: false, anim: 0, buffer: 0,
+      reset() {
+        this.bottom = GROUND; this.vy = 0; this.grounded = true;
+        this.ducking = false; this.anim = 0; this.buffer = 0;
+      },
+      jump() {
+        this.vy = JUMP_V;
+        this.grounded = false;
+        this.buffer = 0;
+        sfx.jump();
+        dust(this.x + 15, GROUND, 4);
+      },
+      update(dt) {
+        if (this.buffer > 0) this.buffer -= dt;
+        if (!this.grounded) {
+          this.vy += GRAVITY * (this.ducking ? FAST_FALL : 1) * dt;
+          this.bottom += this.vy * dt;
+          if (this.bottom >= GROUND) {
+            this.bottom = GROUND;
+            this.vy = 0;
+            this.grounded = true;
+            dust(this.x + 15, GROUND, 6);
+            if (this.buffer > 0) this.jump();
+          }
+        } else {
+          this.anim += dt * speed / BASE_SPEED;
+        }
+      },
+      hitbox() {
+        return this.ducking
+          ? { x: this.x + 6, y: this.bottom - DUCK_H * S + 3, w: 19, h: DUCK_H * S - 3 }
+          : { x: this.x + 8, y: this.bottom - STAND_H * S + 4, w: 16, h: STAND_H * S - 4 };
+      },
+      draw() {
+        // sombra no chão
+        const lift = Math.min(1, (GROUND - this.bottom) / 90);
+        ctx.fillStyle = `rgba(10,0,30,${0.45 - lift * 0.3})`;
+        const sw = Math.round(26 - lift * 12);
+        ctx.fillRect(Math.round(this.x + 15 - sw / 2), GROUND - 1, sw, 3);
+
+        if (state === PLAY && invuln > 0 && Math.floor(invuln * 10) % 2) return;
+
+        let img;
+        if (state === OVER) img = SPR.front;
+        else if (this.ducking) img = SPR.duck;
+        else if (!this.grounded) img = SPR.jump;
+        else if (state === PLAY) img = RUN_CYCLE[Math.floor(this.anim * 10) % 4];
+        else img = SPR.stand;
+
+        const bob = state === PLAY && this.grounded && !this.ducking && img !== SPR.stand ? -1 : 0;
+        const x = Math.round(this.x - (img.width - SW) * S / 2);
+        const dh = img.height * S;
+        ctx.drawImage(img, x, Math.round((this.bottom - dh + bob * S) * 2) / 2, img.width * S, dh);
+
+        if (state === OVER) {
+          // "!!" de susto e gota de suor
+          ctx.fillStyle = '#ff3d6e';
+          const ex = x + img.width * S + 2, ey = this.bottom - dh - 2;
+          ctx.fillRect(ex, ey, 2, 6); ctx.fillRect(ex, ey + 8, 2, 2);
+          ctx.fillRect(ex + 4, ey, 2, 6); ctx.fillRect(ex + 4, ey + 8, 2, 2);
+          ctx.fillStyle = '#7fe9ff';
+          ctx.fillRect(x - 3, ey + 12, 2, 3); ctx.fillRect(x - 2, ey + 11, 1, 1);
+        }
+      }
+    };
+
+    // ================= OBSTÁCULOS =================
+    // Chão: calendários (pule). Ar: balões de mensagem (abaixe).
+    const CALENDARS = [
+      ['REUNIÃO', '9:00AM'], ['EMERGÊNCIA', '3PM'], ['STATUS'], ['DAILY', '10:00'],
+      ['ALINHA-', 'MENTO'], ['1:1', '5 MIN'], ['CALL', 'URGENTE']
+    ];
+    const BUBBLES = [
+      { lines: ['CHEFIA'], bg: '#3ee0ff', fg: '#0d0820', border: '#0d0820' },
+      { lines: ['LIGAÇÃO', 'URGENTE'], bg: '#4dff6a', fg: '#0d0820', border: '#0d0820' },
+      { lines: ['CHEFIA', 'SEM RESPOSTA'], bg: '#140b33', fg: '#ffd23f', border: '#ffd23f' },
+      { lines: ['5 MINUTOS'], bg: '#140b33', fg: '#ff6b6b', border: '#ff3b3b', clock: true },
+      { lines: ['PING', 'NO SLACK'], bg: '#b388ff', fg: '#0d0820', border: '#0d0820' }
+    ];
+    const CHAR_W = 4; // Press Start 2P a 4px: cada letra ocupa 4px
+
+    function spawnObstacle() {
+      const air = spawned >= 2 && Math.random() < 0.35;
+      if (air) {
+        const b = BUBBLES[Math.floor(Math.random() * BUBBLES.length)];
+        const tw = Math.max(...b.lines.map(l => l.length)) * CHAR_W;
+        const w = tw + 10 + (b.clock ? 12 : 0);
+        obstacles.push({ x: W + 10, y: 152, s: S, bw: w, bh: 20, w: w * S, h: 20 * S, air: true, ...b });
+      } else {
+        const lines = CALENDARS[Math.floor(Math.random() * CALENDARS.length)];
+        const w = Math.max(30, Math.max(...lines.map(l => l.length)) * CHAR_W + 10);
+        obstacles.push({ x: W + 10, y: GROUND - 28 * CAL_S, s: CAL_S, bw: w, bh: 28, w: w * CAL_S, h: 28 * CAL_S, air: false, lines, tilt: Math.random() < 0.5 ? -1 : 1 });
+      }
+      spawned++;
+    }
+
+    // Intervalo pensado em distância (como no dinossauro): o tempo entre obstáculos
+    // encolhe com a velocidade, mas sempre sobra espaço para pousar e pular de novo.
+    function nextSpawnDelay() {
+      return 0.7 + 80 / speed + Math.random() * 0.6;
+    }
+
+    function overlap(a, b) {
+      return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    }
+
+    // ================= PARTÍCULAS =================
+    function burst(x, y, colors, n, power = 140) {
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2, v = power * (0.4 + Math.random() * 0.8);
+        particles.push({
+          x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60,
+          life: 0.5 + Math.random() * 0.5, max: 1,
+          col: colors[Math.floor(Math.random() * colors.length)],
+          size: 1 + Math.floor(Math.random() * 3), g: 420
+        });
+      }
+    }
+    function dust(x, y, n) {
+      for (let i = 0; i < n; i++) {
+        particles.push({
+          x: x + (Math.random() - 0.5) * 10, y: y - 1,
+          vx: -40 - Math.random() * 60, vy: -20 - Math.random() * 30,
+          life: 0.3 + Math.random() * 0.2, max: 0.5, col: '#9eabb5', size: 2, g: 60
+        });
+      }
+    }
+
+    // ================= UPDATE =================
+    function scroll(dt, s) {
+      scrollX += s * dt;
+    }
+
+    function update(dt) {
+      speed = Math.min(MAX_SPEED, speed + ACCEL * dt);
+      score += speed * dt * 0.04; // pontos pela distância percorrida
+      if (Math.floor(score / 100) > milestone) {
+        milestone = Math.floor(score / 100);
+        flashT = 0.9;
+        sfx.milestone();
+      }
+      if (flashT > 0) flashT -= dt;
+
+      spawnIn -= dt;
+      if (spawnIn <= 0) { spawnObstacle(); spawnIn = nextSpawnDelay(); }
+
+      coffeeIn -= dt;
+      if (coffeeIn <= 0) {
+        const clear = obstacles.every(o => o.x + o.w < W - 70);
+        if (clear) {
+          coffees.push({ x: W + 10, y: 156 + Math.random() * 10 });
+          coffeeIn = 4 + Math.random() * 4;
+          spawnIn = Math.max(spawnIn, 0.5);
+        } else {
+          coffeeIn = 0.3;
+        }
+      }
+
+      player.update(dt);
+      if (invuln > 0) invuln -= dt;
+      const pb = player.hitbox();
+
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const o = obstacles[i];
+        o.x -= speed * dt;
+        if (o.x + o.w < -20) { obstacles.splice(i, 1); continue; }
+        if (invuln <= 0 && overlap(pb, o)) {
+          obstacles.splice(i, 1);
+          burst(o.x + o.w / 2, o.y + o.h / 2, o.air ? [o.bg, o.border, '#ffffff'] : ['#ffffff', '#e8344b', '#9aa0b5', '#3ee0ff'], 22);
+          hp--;
+          invuln = 1;
+          shake = 0.25;
+          sfx.hit();
+          vibrate(60);
+          if (hp <= 0) { gameOver(); return; }
+        }
+      }
+
+      for (let i = coffees.length - 1; i >= 0; i--) {
+        const c = coffees[i];
+        c.x -= speed * dt;
+        if (c.x < -20) { coffees.splice(i, 1); continue; }
+        if (overlap(pb, { x: c.x, y: c.y, w: 14 * S, h: 14 * S })) {
+          coffees.splice(i, 1);
+          if (hp < 3) hp++;
+          score += 50;
+          sfx.coffee();
+          burst(c.x + 10, c.y + 10, ['#ffe66d', '#ffffff', '#ff9a3c'], 12, 90);
+          popups.push({ x: c.x, y: c.y, t: 0.9, text: '+50' });
+        }
+      }
+    }
+
+    function updateFx(dt) {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life -= dt;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        p.vy += p.g * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+      }
+      for (let i = popups.length - 1; i >= 0; i--) {
+        popups[i].t -= dt;
+        popups[i].y -= 30 * dt;
+        if (popups[i].t <= 0) popups.splice(i, 1);
+      }
+      if (shake > 0) shake -= dt;
+    }
+
+    // ================= RENDER =================
+    function drawTiled(img, factor, y) {
+      const w = img.width;
+      const off = Math.floor((scrollX * factor) % w);
+      ctx.drawImage(img, -off, y);
+      ctx.drawImage(img, w - off, y);
+    }
+
+    function drawFloor() {
+      ctx.fillStyle = OFF.floor;
+      ctx.fillRect(0, WIN_BOTTOM, W, H - WIN_BOTTOM);
+      // faixa mais clara (reflexo das janelas)
+      ctx.fillStyle = OFF.floorLight;
+      ctx.fillRect(0, WIN_BOTTOM + 3, W, 10);
+
+      // juntas horizontais do piso
+      ctx.fillStyle = OFF.floorLine;
+      [207, 218, 232, 250].forEach(y => ctx.fillRect(0, y, W, 1));
+
+      // juntas em perspectiva, andando com a corrida
+      ctx.strokeStyle = OFF.floorLine;
+      ctx.lineWidth = 0.75;
+      ctx.beginPath();
+      const vx = W / 2;
+      const sx = scrollX % 64;
+      for (let k = -9; k <= 9; k++) {
+        const bx = vx + k * 64 - sx;
+        ctx.moveTo(vx + (bx - vx) * 0.35, WIN_BOTTOM);
+        ctx.lineTo(vx + (bx - vx) * 1.6, H);
+      }
+      ctx.stroke();
+
+      // rodapé
+      ctx.fillStyle = OFF.frame;
+      ctx.fillRect(0, WIN_BOTTOM, W, 2);
+    }
+
+    function textLines(lines, cx, cy, size, color) {
+      ctx.font = font(size);
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const lh = size + 2;
+      const top = cy - ((lines.length - 1) * lh) / 2;
+      lines.forEach((l, i) => ctx.fillText(l, cx, top + i * lh));
+    }
+
+    function drawCalendar(o) {
+      const w = o.bw, h = o.bh;
+      ctx.save();
+      ctx.translate(Math.round(o.x), o.y);
+      ctx.scale(o.s, o.s);
+      ctx.translate(w / 2, h);
+      ctx.rotate(o.tilt * 0.06);
+      ctx.translate(-w / 2, -h);
+      // sombra + contorno
+      ctx.fillStyle = 'rgba(10,0,30,0.5)';
+      ctx.fillRect(2, 2, w, h);
+      ctx.fillStyle = '#0d0820';
+      ctx.fillRect(-1, -1, w + 2, h + 2);
+      // folha
+      ctx.fillStyle = '#f4f1ff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#d9d4ee';
+      ctx.fillRect(0, h - 3, w, 3);
+      // cabeçalho vermelho
+      ctx.fillStyle = '#e8344b';
+      ctx.fillRect(0, 0, w, 7);
+      ctx.fillStyle = '#ff6b7d';
+      ctx.fillRect(0, 0, w, 1);
+      // argolas
+      ctx.fillStyle = '#9aa0b5';
+      ctx.fillRect(5, -3, 2, 6);
+      ctx.fillRect(w - 7, -3, 2, 6);
+      // canto dobrado
+      ctx.fillStyle = '#c8c2e0';
+      ctx.fillRect(w - 6, h - 6, 6, 6);
+      ctx.fillStyle = '#0d0820';
+      ctx.fillRect(w - 6, h - 6, 1, 6);
+      ctx.fillRect(w - 6, h - 6, 6, 1);
+      textLines(o.lines, w / 2, 7 + (h - 10) / 2, 4, '#1a1030');
+      ctx.restore();
+    }
+
+    function drawBubble(o) {
+      const x = 0, y = 0, w = o.bw, h = o.bh;
+      ctx.save();
+      ctx.translate(Math.round(o.x), o.y);
+      ctx.scale(o.s, o.s);
+      const glow = o.border === '#0d0820' ? o.bg : o.border;
+      // brilho neon
+      ctx.fillStyle = glow;
+      ctx.globalAlpha = 0.25 + Math.sin(clock * 8) * 0.08;
+      ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
+      ctx.globalAlpha = 1;
+      // contorno + corpo (cantos arredondados em pixel)
+      ctx.fillStyle = o.border;
+      ctx.fillRect(x + 1, y - 1, w - 2, h + 2);
+      ctx.fillRect(x - 1, y + 1, w + 2, h - 2);
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = o.bg;
+      ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+      // rabinho do balão
+      ctx.fillStyle = o.border;
+      ctx.fillRect(x + 4, y + h, 6, 2);
+      ctx.fillRect(x + 3, y + h + 2, 4, 2);
+      ctx.fillRect(x + 2, y + h + 4, 2, 1);
+      ctx.fillStyle = o.bg;
+      ctx.fillRect(x + 5, y + h - 1, 4, 2);
+      ctx.fillRect(x + 4, y + h + 1, 2, 2);
+
+      let cx = x + w / 2;
+      if (o.clock) {
+        // despertador
+        const kx = x + 4, ky = y + 6;
+        ctx.fillStyle = '#ff3b3b';
+        ctx.fillRect(kx, ky, 10, 10);
+        ctx.fillRect(kx - 1, ky - 2, 3, 2);
+        ctx.fillRect(kx + 8, ky - 2, 3, 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(kx + 2, ky + 2, 6, 6);
+        ctx.fillStyle = '#0d0820';
+        ctx.fillRect(kx + 4, ky + 3, 1, 3);
+        ctx.fillRect(kx + 5, ky + 5, 2, 1);
+        cx += 6;
+      }
+      textLines(o.lines, cx, y + h / 2 + 0.5, 4, o.fg);
+      ctx.restore();
+    }
+
+    function drawCoffee(c) {
+      ctx.save();
+      ctx.translate(Math.round(c.x), Math.round(c.y + Math.sin(clock * 5 + c.x * 0.05) * 2));
+      ctx.scale(S, S);
+      const x = 0, y = 0;
+      // halo
+      ctx.fillStyle = 'rgba(255,230,109,0.22)';
+      ctx.fillRect(x - 3, y - 3, 20, 20);
+      ctx.fillStyle = '#0d0820';
+      ctx.fillRect(x - 1, y + 2, 13, 13);
+      ctx.fillRect(x + 11, y + 4, 4, 9);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x, y + 3, 11, 11);
+      ctx.fillRect(x + 11, y + 5, 3, 2);
+      ctx.fillRect(x + 12, y + 5, 2, 6);
+      ctx.fillRect(x + 11, y + 10, 3, 2);
+      ctx.fillStyle = '#6f4e37';
+      ctx.fillRect(x + 1, y + 4, 9, 2);
+      ctx.fillStyle = '#ff3fa4';
+      ctx.fillRect(x, y + 9, 11, 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      const s = Math.floor(clock * 6) % 2;
+      ctx.fillRect(x + 3 + s, y - 1, 1, 3);
+      ctx.fillRect(x + 7 - s, y - 2, 1, 3);
+      ctx.restore();
+    }
+
+    function drawHeart(x, y, full) {
+      HEART.forEach((r, j) => {
+        for (let i = 0; i < r.length; i++) {
+          if (r[i] !== 'X') continue;
+          ctx.fillStyle = full ? (j === 1 && i === 1 ? '#ffb3c1' : '#ff3d6e') : 'rgba(255,255,255,0.18)';
+          ctx.fillRect(x + i * 1.5, y + j * 1.5, 1.5, 1.5);
+        }
+      });
+    }
+
+    function shadowText(text, x, y, size, color, align) {
+      ctx.font = font(size);
+      ctx.textAlign = align;
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = '#0d0820';
+      ctx.fillText(text, x + 1, y + 1);
+      ctx.fillStyle = color;
+      ctx.fillText(text, x, y);
+    }
+
+    function render() {
+      ctx.save();
+      if (shake > 0) ctx.translate(Math.round((Math.random() - 0.5) * 4), Math.round((Math.random() - 0.5) * 4));
+
+      ctx.drawImage(ceilingLayer, 0, 0);
+      drawTiled(windowLayer, 0.12, WALL_TOP);
+      drawFloor();
+      drawTiled(deskLayer, 0.45, FLOOR_TOP + 10 - DESK_H);
+
+      obstacles.forEach(o => (o.air ? drawBubble(o) : drawCalendar(o)));
+      coffees.forEach(drawCoffee);
+      player.draw();
+
+      for (const p of particles) {
+        ctx.globalAlpha = Math.min(1, p.life / (p.max * 0.5));
+        ctx.fillStyle = p.col;
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
+      }
+      ctx.globalAlpha = 1;
+
+      for (const p of popups) {
+        ctx.globalAlpha = Math.min(1, p.t * 2);
+        shadowText(p.text, p.x + 10, p.y - 6, 8, '#ffe66d', 'center');
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
+
+      // HUD com fundo escuro para ler sobre o cenário claro
+      ctx.fillStyle = 'rgba(45,58,69,0.85)';
+      ctx.fillRect(4, 4, 106, 17);
+      ctx.fillRect(W - 140, 4, 136, 26);
+      shadowText('VIDAS:', 8, 8, 8, '#ffffff', 'left');
+      for (let i = 0; i < 3; i++) drawHeart(58 + i * 13, 7, i < hp);
+      // a cada 100 pontos o placar pisca, como no jogo do dinossauro
+      const shown = flashT > 0 ? milestone * 100 : Math.floor(score);
+      if (!(flashT > 0 && Math.floor(flashT * 8) % 2)) {
+        shadowText('PONTUAÇÃO: ' + String(shown).padStart(5, '0'), W - 8, 8, 8, '#ffe66d', 'right');
+      }
+      shadowText('RECORDE ' + String(best).padStart(5, '0'), W - 8, 20, 4, '#f6c8a6', 'right');
+    }
+
+    // ================= FLUXO DO JOGO =================
+    function setState(s) {
+      state = s;
+      stateAt = performance.now();
+      container.dataset.state = s;
+    }
+
+    function showOverlay(title, tag, sub, btn) {
+      overlayTitle.textContent = title;
+      overlayTag.textContent = tag;
+      overlaySub.textContent = sub;
+      startBtn.textContent = btn;
+      overlay.classList.remove('hidden');
+    }
+
+    function hideOverlay() {
+      overlay.classList.add('hidden');
+      startBtn.blur();
+    }
+
+    function startGame() {
+      score = 0; hp = 3; speed = BASE_SPEED;
+      obstacles = []; coffees = []; popups = []; particles = [];
+      spawnIn = 1; coffeeIn = 5; invuln = 0; spawned = 0; shake = 0; milestone = 0; flashT = 0;
+      player.reset();
+      setState(PLAY);
+      hideOverlay();
+    }
+
+    function gameOver() {
+      setState(OVER);
+      sfx.over();
+      vibrate([80, 60, 120]);
+      const final = Math.floor(score);
+      const isRecord = final > best;
+      if (isRecord) {
+        best = final;
+        try { localStorage.setItem('fdr-best', String(best)); } catch (e) {}
+      }
+      showOverlay(
+        'REUNIÃO AGENDADA!',
+        isRecord ? '★ NOVO RECORDE ★' : `RECORDE: ${best}`,
+        `Você sobreviveu com ${final} pontos.`,
+        '↻ JOGAR DE NOVO'
+      );
+    }
+
+    function pause() {
+      if (state !== PLAY) return;
+      setState(PAUSE);
+      player.ducking = false;
+      showOverlay('PAUSADO', '— INTERVALO DO CAFÉ —', 'A próxima call pode esperar.', '▶ CONTINUAR');
+    }
+
+    function resume() {
+      setState(PLAY);
+      hideOverlay();
+      last = performance.now();
+    }
+
+    function pressJump() {
+      sfx.init();
+      if (state === MENU) startGame();
+      else if (state === OVER) {
+        if (performance.now() - stateAt > 600) startGame();
+      }
+      else if (state === PAUSE) resume();
+      else if (player.grounded) player.jump();
+      else player.buffer = 0.12;
+    }
+
+    function setDuck(v) {
+      player.ducking = v;
+    }
+
+    function vibrate(p) {
+      try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {}
+    }
+
+    // ================= LOOP =================
+    let last = performance.now();
+    function loop(now) {
+      const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+      last = now;
+      clock += dt;
+      if (state === PLAY) {
+        scroll(dt, speed);
+        update(dt);
+      } else if (state !== PAUSE) {
+        scroll(dt, 40); // cenário anda devagar no menu e no game over
+      }
+      if (state !== PAUSE) updateFx(dt);
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    // ================= CONTROLES =================
+    const JUMP_KEYS = ['Space', 'ArrowUp', 'KeyW'];
+    const DUCK_KEYS = ['ArrowDown', 'KeyS'];
+
+    window.addEventListener('keydown', e => {
+      const isJump = JUMP_KEYS.includes(e.code);
+      const isDuck = DUCK_KEYS.includes(e.code);
+      if (isJump || isDuck) e.preventDefault();
+      if (e.repeat) return;
+      if (isJump || (e.code === 'Enter' && state !== PLAY)) pressJump();
+      else if (isDuck) setDuck(true);
+      else if (e.code === 'KeyP' || e.code === 'Escape') state === PLAY ? pause() : (state === PAUSE && resume());
+      else if (e.code === 'KeyM') sfx.muted = !sfx.muted;
+    });
+
+    window.addEventListener('keyup', e => {
+      if (JUMP_KEYS.includes(e.code)) e.preventDefault();
+      if (DUCK_KEYS.includes(e.code)) setDuck(false);
+    });
+
+    overlay.addEventListener('click', () => {
+      if (state !== PLAY) pressJump();
+    });
+
+    canvas.addEventListener('pointerdown', e => {
+      if (state === PLAY) { e.preventDefault(); pressJump(); }
+    });
+
+    pauseBtn.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      pause();
+    });
+
+    function bindHold(el, down, up) {
+      el.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        try { el.setPointerCapture(e.pointerId); } catch (_) {}
+        el.classList.add('pressed');
+        down();
+      });
+      const end = () => {
+        if (!el.classList.contains('pressed')) return;
+        el.classList.remove('pressed');
+        if (up) up();
+      };
+      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => el.addEventListener(t, end));
+    }
+    bindHold(btnJump, pressJump, null);
+    bindHold(btnDuck, () => { sfx.init(); setDuck(true); }, () => setDuck(false));
+
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+    document.addEventListener('gesturestart', e => e.preventDefault());
+
+    document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+    window.addEventListener('blur', () => { setDuck(false); pause(); });
+
+    // ================= RESPONSIVIDADE =================
+    function updateHints() {
+      overlayHint.textContent = document.body.classList.contains('touch')
+        ? 'Toque ▲ ou na tela para pular · segure ▼ para abaixar'
+        : 'ESPAÇO/↑ pula · ↓ abaixa · P pausa · M som';
+    }
+
+    function fit() {
+      const r = stage.getBoundingClientRect();
+      const cs = getComputedStyle(stage);
+      const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+      const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+      const hintH = rotateHint.offsetParent ? rotateHint.offsetHeight + 10 : 0;
+      const availW = r.width - padX;
+      const availH = r.height - padY - hintH;
+      const w = Math.max(200, Math.floor(Math.min(availW, availH * 16 / 9, 1100)));
+      container.style.width = w + 'px';
+      container.style.height = Math.round(w * 9 / 16) + 'px';
+    }
+
+    function enableTouch() {
+      if (document.body.classList.contains('touch')) return;
+      document.body.classList.add('touch');
+      updateHints();
+      fit();
+    }
+
+    if (matchMedia('(pointer: coarse)').matches ||
+        (navigator.maxTouchPoints > 0 && matchMedia('(hover: none)').matches)) {
+      enableTouch();
+    }
+    window.addEventListener('touchstart', enableTouch, { passive: true });
+
+    window.addEventListener('resize', fit);
+    window.addEventListener('orientationchange', () => setTimeout(fit, 150));
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', fit);
+
+    updateHints();
+    fit();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
