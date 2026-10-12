@@ -190,13 +190,17 @@
       .panel { max-width: 92cqw; }
     }
 
-    /* Botão de pausa: topo central, só durante a partida */
-    #pause-btn {
+    /* Botões do topo: pausa (só durante a partida) e som (sempre visível) */
+    #top-btns {
       position: absolute;
       top: 6px;
       left: 50%;
       transform: translateX(-50%);
-      z-index: 6;
+      z-index: 11; /* acima das telas de menu/pausa/game over */
+      display: flex;
+      gap: 6px;
+    }
+    #pause-btn, #sound-btn {
       display: none;
       align-items: center;
       justify-content: center;
@@ -211,6 +215,14 @@
       cursor: pointer;
       touch-action: none;
     }
+    #sound-btn { display: flex; }
+    #sound-btn svg { width: 18px; height: 18px; shape-rendering: crispEdges; }
+    #sound-btn[aria-pressed="true"] {
+      color: #ff8a8a;
+      border-color: #ff8a8a;
+      box-shadow: 0 0 8px rgba(255, 138, 138, 0.6);
+    }
+    #pause-btn:focus-visible, #sound-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
     #game-container[data-state="play"] #pause-btn { display: flex; }
 
     /* --- Controles touch --- */
@@ -293,7 +305,10 @@
       <div id="game-container" data-state="menu">
         <canvas id="gameCanvas"></canvas>
 
-        <button id="pause-btn" type="button" aria-label="Pausar">❚❚</button>
+        <div id="top-btns">
+          <button id="pause-btn" type="button" aria-label="Pausar" title="Pausar (P)">❚❚</button>
+          <button id="sound-btn" type="button" aria-label="Desligar som" aria-pressed="false" title="Som (M)"></button>
+        </div>
 
         <div id="overlay">
           <img id="portrait" alt="">
@@ -368,6 +383,7 @@
     const portrait = $('portrait');
     const startBtn = $('start-btn');
     const pauseBtn = $('pause-btn');
+    const soundBtn = $('sound-btn');
     const rotateHint = $('rotate-hint');
     const btnJump = $('btn-jump');
     const btnDuck = $('btn-duck');
@@ -1354,7 +1370,7 @@
       if (isJump || (e.code === 'Enter' && state !== PLAY)) pressJump();
       else if (isDuck) setDuck(true);
       else if (e.code === 'KeyP' || e.code === 'Escape') state === PLAY ? pause() : (state === PAUSE && resume());
-      else if (e.code === 'KeyM') sfx.muted = !sfx.muted;
+      else if (e.code === 'KeyM') setMuted(!sfx.muted);
     });
 
     window.addEventListener('keyup', e => {
@@ -1368,6 +1384,32 @@
 
     canvas.addEventListener('pointerdown', e => {
       if (state === PLAY) { e.preventDefault(); pressJump(); }
+    });
+
+    // ================= SOM LIGA/DESLIGA =================
+    const ICON_SOUND_ON = '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M1 6h3l4-4v12l-4-4H1z"/><path fill="currentColor" d="M10 5h1v6h-1zM12 3h1v10h-1zM14 6h1v4h-1z"/></svg>';
+    const ICON_SOUND_OFF = '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M1 6h3l4-4v12l-4-4H1z"/><path fill="currentColor" d="M10 5h1v1h-1zM11 6h1v1h-1zM12 7h2v2h-2zM14 6h1v1h-1zM15 5h1v1h-1zM11 9h1v1h-1zM10 10h1v1h-1zM14 9h1v1h-1zM15 10h1v1h-1z"/></svg>';
+
+    function setMuted(v) {
+      sfx.muted = v;
+      soundBtn.innerHTML = v ? ICON_SOUND_OFF : ICON_SOUND_ON;
+      soundBtn.setAttribute('aria-pressed', String(v));
+      soundBtn.setAttribute('aria-label', v ? 'Ligar som' : 'Desligar som');
+      try { localStorage.setItem('fdr-muted', v ? '1' : '0'); } catch (e) {}
+    }
+
+    // Lembra a escolha da pessoa entre as visitas
+    let savedMuted = false;
+    try { savedMuted = localStorage.getItem('fdr-muted') === '1'; } catch (e) {}
+    setMuted(savedMuted);
+
+    // Não deixa o toque "vazar" para o menu (que começaria a partida) nem para o jogo (que pularia)
+    soundBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); });
+    soundBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      setMuted(!sfx.muted);
+      sfx.init();
+      soundBtn.blur();
     });
 
     pauseBtn.addEventListener('pointerdown', e => {

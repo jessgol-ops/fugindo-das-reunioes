@@ -13,12 +13,16 @@ Jogo 8-bit de corrida infinita no navegador: fuja dos calendários de reunião e
 | Pular calendários | `Espaço`, `↑` ou `W` | Botão ▲ ou tocar na tela |
 | Abaixar dos balões | `↓` ou `S` (segurar) | Segurar o botão ▼ |
 | Pausar | `P` ou `Esc` | Botão ❚❚ |
-| Som liga/desliga | `M` | — |
+| Ligar/desligar som | Botão 🔊 no topo ou `M` | Botão 🔊 no topo |
 
 - ☕ Café recupera 1 vida e vale +50 pontos.
 - A velocidade aumenta aos poucos, como no jogo do dinossauro do Chrome.
 - A cada 100 pontos o placar pisca.
-- O recorde fica salvo no navegador.
+- O recorde e a escolha de som ficam salvos no navegador.
+
+## Versões
+
+Veja o histórico de mudanças em [CHANGELOG.md](CHANGELOG.md).
 
 ## Rodar localmente
 
