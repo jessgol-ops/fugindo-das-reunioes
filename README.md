@@ -2,6 +2,8 @@
 
 Jogo 8-bit de corrida infinita no navegador: fuja dos calendários de reunião e dos balões da chefia, e pegue café para recuperar vida.
 
+🎮 **Jogue agora:** https://jessgol-ops.github.io/fugindo-das-reunioes/
+
 **Funciona no computador e no celular**, sem instalar nada: é um único arquivo `index.html`.
 
 ## Como jogar
